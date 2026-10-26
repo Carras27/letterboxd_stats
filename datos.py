@@ -192,7 +192,7 @@ def agrupar_por_anio(df: pd.DataFrame, agrupacion: str | None = None) -> pd.Data
     return resultado
 
 
-def agrupar_por_director(df: pd.DataFrame, minimo: int = 3) -> pd.DataFrame:
+def agrupar_por_director(df: pd.DataFrame, minimo: int = 3):
     """
     Cuenta cuántas películas hay de cada director y muestra en un gráfico
     solo los que tienen más de `minimo` películas.
@@ -225,7 +225,7 @@ def agrupar_por_director(df: pd.DataFrame, minimo: int = 3) -> pd.DataFrame:
     ax.invert_yaxis()
     ax.bar_label(barras, padding=3, fontsize=9)
     ax.set_xlabel("Número de películas")
-    ax.set_title(f"Directores con más de {minimo} películas")
+    ax.set_title(f"Directores con más de {minimo} Películas")
     ax.xaxis.get_major_locator().set_params(integer=True)
     ax.margins(x=0.08)
     ax.grid(axis="x", alpha=0.3)
@@ -234,4 +234,48 @@ def agrupar_por_director(df: pd.DataFrame, minimo: int = 3) -> pd.DataFrame:
     plt.tight_layout()
     plt.show()
 
+    return resultado
+
+def agrupar_por_actor(df: pd.DataFrame, minimo: int = 3):
+    """
+    Cuenta cuántas películas hay de cada actor y muestra en un gráfico
+    solo los que tienen más de `minimo` películas.
+    """
+    if "Actores" not in df.columns:
+            raise ValueError("Falta la columna 'Actores'. Ejecuta antes anadir_creditos(df)")
+    
+    # Una película puede tener varios directores. Se separa y se cuenta a cada uno.
+    actores = (
+        df["Actores"]
+        .fillna("")
+        .str.split(", ")
+        .explode()
+        .str.strip()
+    )
+    actores = actores[actores != ""]   # descarta las películas sin actores
+    
+    conteo = actores.value_counts()
+    conteo = conteo[conteo > minimo]            # solo los que superan el mínimo
+    
+    if conteo.empty:
+        print(f"Ningún actor tiene más de {minimo} películas")
+        return pd.DataFrame(columns=["Actores", "Películas"])
+    
+    resultado = conteo.rename_axis("Actores").reset_index(name="Películas")
+    
+    # Gráfico de barras horizontales, el actor con más películas arriba
+    fig, ax = plt.subplots(figsize=(10, max(4, len(resultado) * 0.4)))
+    barras = ax.barh(resultado["Actores"], resultado["Películas"], color="#4C78A8")
+    ax.invert_yaxis()
+    ax.bar_label(barras, padding=3, fontsize=9)
+    ax.set_xlabel("Número de películas")
+    ax.set_title(f"Actores con más de {minimo} Películas")
+    ax.xaxis.get_major_locator().set_params(integer=True)
+    ax.margins(x=0.08)
+    ax.grid(axis="x", alpha=0.3)
+    ax.set_axisbelow(True)
+    
+    plt.tight_layout()
+    plt.show()
+    
     return resultado
