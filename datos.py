@@ -101,7 +101,7 @@ def buscar_data(nombre: str, anio: int, n_actores: int = 10) -> dict:
         "IdiomaOriginal": data.get("original_language", ""),
         }
 
-def anadir_creditos(df: pd.DataFrame, ruta_cache: str = "creditos_cache.json") -> pd.DataFrame:
+def anadir_detalles(df: pd.DataFrame, ruta_cache: str = "creditos_cache.json") -> pd.DataFrame:
     """
     Añade las columnas Director y Actores, guardando lo ya consultado en un caché.
     """
@@ -118,9 +118,10 @@ def anadir_creditos(df: pd.DataFrame, ruta_cache: str = "creditos_cache.json") -
         clave = f"{nombre} ({anio})"
         if clave not in cache: # Si no está en caché, los busca en TMDB para añadirlo.
             try:
-                cache[clave] = buscar_creditos(nombre, int(anio))
+                cache[clave] = buscar_data(nombre, int(anio))
             except (requests.RequestException, ValueError):
-                cache[clave] = {"Director": "", "Actores": ""}
+                cache[clave] = {"Director": "", "Actores": "", "Generos": "",
+                                "RatingTMDB": None, "Duracion": None, "IdiomaOriginal":""}
             time.sleep(0.1)  # no saturar la API
         filas.append(cache[clave]) # Añade el resultado a la caché.
 
@@ -293,4 +294,35 @@ def agrupar_por_actor(df: pd.DataFrame, minimo: int = 3):
     plt.tight_layout()
     plt.show()
     
+    return resultado
+
+def agrupar_por_genero(df: pd.DataFrame, top_n: int = 12):
+    if "Generos" not in df.columns:
+        raise ValueError("Falta 'Generos'. Ejecuta antes anadir_detalles(df)")
+
+    generos = (
+        df["Generos"]
+        .fillna("")
+        .str.split(", ")
+        .explode()
+        .str.strip()
+    )
+    generos = generos[generos != ""]
+
+    conteo = generos.value_counts().head(top_n)
+    resultado = conteo.rename_axis("Genero").reset_index(name="Peliculas")
+
+    fig, ax = plt.subplots(figsize=(10, max(4, len(resultado) * 0.45)))
+    barras = ax.barh(resultado["Genero"], resultado["Peliculas"], color="#4C78A8")
+    ax.invert_yaxis()
+    ax.bar_label(barras, padding=3, fontsize=9)
+    ax.set_xlabel("Número de películas")
+    ax.set_title(f"Top {top_n} géneros más vistos")
+    ax.xaxis.get_major_locator().set_params(integer=True)
+    ax.margins(x=0.08)
+    ax.grid(axis="x", alpha=0.3)
+    ax.set_axisbelow(True)
+    plt.tight_layout()
+    plt.show()
+
     return resultado

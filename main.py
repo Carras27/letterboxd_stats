@@ -1,9 +1,11 @@
-from datos import elegir_fichero, anadir_creditos, agrupar_por_anio, agrupar_por_director, agrupar_por_actor
+import datos as dat
 import pandas as pd
 
 if __name__ == "__main__":
-    df = elegir_fichero("carras")
-    #agrupar_por_anio(df)
-    df = anadir_creditos(df)
-    #agrupar_por_director(df, 2)
-    agrupar_por_actor(df, 3)
+    df = dat.elegir_fichero("carras")
+    #dat.agrupar_por_anio(df)
+    #df = dat.anadir_detalles(df)
+    print(df.columns)
+    #dat.agrupar_por_director(df, 2)
+    #dat.agrupar_por_actor(df, 3)
+    dat.agrupar_por_genero(df, 20)
