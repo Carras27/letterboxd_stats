@@ -297,6 +297,10 @@ def agrupar_por_actor(df: pd.DataFrame, minimo: int = 3):
     return resultado
 
 def agrupar_por_genero(df: pd.DataFrame, top_n: int = 12):
+    """
+    Cuenta cuantas películas hay de cada género y muestra un gráfico de barras con los resultados
+    """
+
     if "Generos" not in df.columns:
         raise ValueError("Falta 'Generos'. Ejecuta antes anadir_detalles(df)")
 
@@ -326,3 +330,105 @@ def agrupar_por_genero(df: pd.DataFrame, top_n: int = 12):
     plt.show()
 
     return resultado
+
+
+def rating_por_anio(df: pd.DataFrame, agrupacion: str | None = None, usar_tmdb: bool = False):
+    """
+    Rating medio por año o por década de estreno.
+    Si agrupacion es None, se pregunta por consola (1 = años, 2 = décadas).
+    Si usar_tmdb=True añade la media de TMDB.
+    """
+
+    if "Rating" not in df.columns:
+        raise ValueError("Falta columna 'Rating'. Usa ratings.csv")
+    if "Year" not in df.columns:
+        raise ValueError("Falta columna 'Year'.")
+
+    # Elige agrupación (mismo patrón que agrupar_por_anio)
+    if agrupacion is None:
+        print("Agrupar por:")
+        print("1. Años")
+        print("2. Décadas")
+        while True:
+            eleccion = input("> ").strip()
+            if eleccion in ("1", "2"):
+                agrupacion = "anio" if eleccion == "1" else "decada"
+                break
+            print("Introduce 1 o 2")
+
+    if agrupacion == "decada":
+        etiqueta_x = "Década de estreno"
+        paso = 10
+    elif agrupacion == "anio":
+        etiqueta_x = "Año de estreno"
+        paso = 1
+    else:
+        raise ValueError("agrupacion debe ser 'anio', 'decada' o None")
+
+    # Prepara datos
+    datos = df.dropna(subset=["Year", "Rating"]).copy()
+    datos["Year"] = pd.to_numeric(datos["Year"], errors="coerce")
+    datos = datos.dropna(subset=["Year"])
+    datos["Year"] = datos["Year"].astype(int)
+
+    def clave_periodo(anios: pd.Series) -> pd.Series:
+        return (anios // 10) * 10 if agrupacion == "decada" else anios
+
+    datos["Periodo"] = clave_periodo(datos["Year"])
+
+    # Media de tu rating por periodo
+    serie = datos.groupby("Periodo")["Rating"].mean()
+
+    # Media de TMDB por periodo (mismo criterio)
+    serie_tmdb = None
+    if usar_tmdb and "RatingTMDB" in datos.columns:
+        sub = datos.dropna(subset=["RatingTMDB"])
+        if not sub.empty:
+            serie_tmdb = sub.groupby("Periodo")["RatingTMDB"].mean()
+
+    # Rellena huecos (igual que agrupar_por_anio) 
+    rango = range(serie.index.min(), serie.index.max() + 1, paso)
+    serie = serie.reindex(rango)                 # NaN en periodos sin datos
+    if serie_tmdb is not None:
+        serie_tmdb = serie_tmdb.reindex(rango)
+
+    # Gráfico
+    fig, ax = plt.subplots(figsize=(12, 5))
+    ax.plot(serie.index, serie.values, marker="o", markersize=4,
+            linewidth=1.4, label="Tu rating medio", color="#4C78A8")
+
+    if serie_tmdb is not None:
+        ax.plot(serie_tmdb.index, serie_tmdb.values, marker="s", markersize=4,
+                linewidth=1.2, label="Media TMDB", color="#F58518", alpha=0.85)
+
+    ax.set_xlabel(etiqueta_x)
+    ax.set_ylabel("Rating medio")
+    ax.set_title(f"Rating medio por {etiqueta_x.lower()}")
+    ax.legend()
+    ax.grid(alpha=0.3)
+
+    # Eje X: todos los puntos si son décadas; múltiplos de 5 si son años
+    if agrupacion == "decada":
+        ax.set_xticks(list(serie.index))
+        ax.set_xticklabels([f"{k}s" for k in serie.index], rotation=45, ha="right")
+    else:
+        marcas = [k for k in serie.index if k % 5 == 0]
+        ax.set_xticks(marcas)
+        ax.set_xticklabels([str(k) for k in marcas], rotation=45, ha="right")
+
+    plt.tight_layout()
+    plt.show()
+
+    # Resultado
+    resultado = pd.DataFrame({"Periodo": serie.index, "RatingMedio": serie.values})
+    if serie_tmdb is not None:
+        resultado["RatingTMDBMedio"] = serie_tmdb.values
+    return resultado
+
+def top_peliculas(df, n=10, mejores=True):
+    """
+    Muestra las películas con mejor valoración por el usuario.
+    """
+    d = df.dropna(subset=["Rating", "Name"])
+    d = d.sort_values("Rating", ascending=not mejores).head(n)
+    print(d[["Name", "Year", "Rating", "Director"]].to_string(index=False))
