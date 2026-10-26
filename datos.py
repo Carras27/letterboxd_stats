@@ -54,11 +54,13 @@ def elegir_fichero(ruta_carpeta: str, sep: str = ",") -> pd.DataFrame:
     return df
 
 
-def buscar_creditos(nombre: str, anio: int, n_actores: int = 7) -> dict:
+def buscar_data(nombre: str, anio: int, n_actores: int = 10) -> dict:
     """
     Busca la película en TMDB y devuelve director(es) y los primeros actores.
     """
-    vacio = {"Director": "", "Actores": ""}
+    vacio = {"Director": "", "Actores": "",
+             "Generos": "", "RatingTMDB": None,
+             "Duracion": None, "IdiomaOriginal": "",}
 
     # Busca la película por título y año
     r = requests.get(
@@ -72,7 +74,7 @@ def buscar_creditos(nombre: str, anio: int, n_actores: int = 7) -> dict:
     if not resultados:
         return vacio
 
-    # Pide los créditos de la película
+    # Pide los créditos y detalles de la película 
     r = requests.get(
         f"{API}/movie/{resultados[0]['id']}",
         headers=HEADERS,
@@ -80,11 +82,24 @@ def buscar_creditos(nombre: str, anio: int, n_actores: int = 7) -> dict:
         timeout=10,
     )
     r.raise_for_status()
+    data = r.json()
     creditos = r.json()["credits"]
-
+    # Guarda los directores y algunos actores de la misma.
     directores = [p["name"] for p in creditos["crew"] if p["job"] == "Director"]
     actores = [p["name"] for p in creditos["cast"][:n_actores]]
-    return {"Director": ", ".join(directores), "Actores": ", ".join(actores)}
+
+    # Extrae los géneros de la película
+    generos = ", ".join(g["name"] for g in data.get("genres", []))
+
+    # Devuelve directores, actores, géneros, rating, duración e idioma.
+    return {
+        "Director": ", ".join(directores),
+        "Actores": ", ".join(actores),
+        "Generos": generos,
+        "RatingTMDB": data.get("vote_average"),
+        "Duracion": data.get("runtime"),
+        "IdiomaOriginal": data.get("original_language", ""),
+        }
 
 def anadir_creditos(df: pd.DataFrame, ruta_cache: str = "creditos_cache.json") -> pd.DataFrame:
     """
