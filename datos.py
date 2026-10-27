@@ -10,6 +10,31 @@ import numpy as np
 # Lista de ficheros de interés del export de Letterboxd.
 ARCHIVOS =  ["ratings.csv", "diary.csv", "watched.csv"]
 
+# Etiquetas para los gráficos
+ETIQUETAS = {
+    "es": {
+        "anio_salida": "Año de salida",
+        "decada_salida": "Década de salida",
+        "num_peliculas": "Número de películas",
+        "peliculas_por": "Películas por {x}",
+        "directores_mas_de": "Directores con más de {n} películas",
+        "actores_mas_de": "Actores con más de {n} películas",
+        "top_generos": "Top {n} géneros más vistos",
+        "anio_estreno": "Año de estreno",
+        "decada_estreno": "Década de estreno",
+        "rating_medio": "Rating medio",
+        "rating_por": "Rating medio por {x}",
+        "tu_rating": "Tu rating medio",
+        "media_tmdb": "Media TMDB",
+        "actividad": "Actividad · {anio} ({n} películas)",
+        "peliculas_dia": "Películas/día",
+        "meses": ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],
+        "dias": ["L","X","V","S","D"],  # L, X(miércoles), V, S, D
+        "sin_datos_director": "Ningún director tiene más de {n} películas",
+        "sin_datos_actor": "Ningún actor tiene más de {n} películas",
+    }
+}
+
 # API de TMDB (The Movie DataBase)
 API = "https://api.themoviedb.org/3"
 HEADERS = {"Authorization": f"Bearer {os.environ['TMDB_TOKEN']}"}
@@ -133,12 +158,13 @@ def anadir_detalles(df: pd.DataFrame, ruta_cache: str = "creditos_cache.json") -
     # Une las nuevas columnas al Dataframe
     return pd.concat([df.reset_index(drop=True), pd.DataFrame(filas)], axis=1)
 
-def agrupar_por_anio(df: pd.DataFrame, agrupacion: str | None = None) -> pd.DataFrame:
+def agrupar_por_anio(df: pd.DataFrame, agrupacion = None, etq = None):
     """
     Lee el csv indicado, agrupa las peliculas por año de salida
     y devuelve un DataFrame con el número de películas vistas por año.
     """
-    
+    etq = etq or ETIQUETAS["es"]
+
     if "Year" not in df.columns:
         raise ValueError("El DataFrame no tiene columna 'Year'")
 
@@ -160,11 +186,11 @@ def agrupar_por_anio(df: pd.DataFrame, agrupacion: str | None = None) -> pd.Data
     if agrupacion == "decada":
         claves = (anios // 10) * 10
         paso = 10
-        etiqueta_x = "Década de Salida"
+        etiqueta_x = etq["decada_salida"]
     elif agrupacion == "anio":
         claves = anios
         paso = 1
-        etiqueta_x = "Año de salida"
+        etiqueta_x = etq["anio_salida"]
     else:
         raise ValueError("agrupacion debe ser 'anio', 'decada' o None")
 
@@ -197,8 +223,8 @@ def agrupar_por_anio(df: pd.DataFrame, agrupacion: str | None = None) -> pd.Data
     ax.set_xticks(marcas)
     ax.set_xticklabels(etiquetas, rotation=45, ha="right")
     ax.set_xlabel(etiqueta_x)
-    ax.set_ylabel("Número de películas")
-    ax.set_title(f"Películas por {etiqueta_x.lower()}")
+    ax.set_ylabel(etq["num_peliculas"])
+    ax.set_title(etq["peliculas_por"].format(x=etiqueta_x.lower()))
     ax.yaxis.get_major_locator().set_params(integer=True)
     ax.margins(y=0.08)                           # hueco para que no se corten los números
     ax.grid(axis="y", alpha=0.3)
@@ -208,11 +234,13 @@ def agrupar_por_anio(df: pd.DataFrame, agrupacion: str | None = None) -> pd.Data
 
     return fig, resultado
 
-def agrupar_por_director(df: pd.DataFrame, minimo: int = 3):
+def agrupar_por_director(df: pd.DataFrame, minimo: int = 3, etq = None):
     """
     Cuenta cuántas películas hay de cada director y muestra en un gráfico
     solo los que tienen más de `minimo` películas.
     """
+    etq = etq or ETIQUETAS["es"]
+
     if "Director" not in df.columns:
         raise ValueError("Falta la columna 'Director'. Ejecuta antes anadir_creditos(df)")
 
@@ -230,8 +258,8 @@ def agrupar_por_director(df: pd.DataFrame, minimo: int = 3):
     conteo = conteo[conteo > minimo]            # solo los que superan el mínimo
 
     if conteo.empty:
-        print(f"Ningún director tiene más de {minimo} películas")
-        return pd.DataFrame(columns=["Director", "Películas"])
+        print(etq["sin_datos_director"].format(n=minimo))
+        return None, pd.DataFrame(columns=["Director", "Películas"])
 
     resultado = conteo.rename_axis("Director").reset_index(name="Películas")
 
@@ -240,8 +268,8 @@ def agrupar_por_director(df: pd.DataFrame, minimo: int = 3):
     barras = ax.barh(resultado["Director"], resultado["Películas"], color="#4C78A8")
     ax.invert_yaxis()
     ax.bar_label(barras, padding=3, fontsize=9)
-    ax.set_xlabel("Número de películas")
-    ax.set_title(f"Directores con más de {minimo} Películas")
+    ax.set_xlabel(etq["num_peliculas"])
+    ax.set_title(etq["directores_mas_de"].format(n=minimo))
     ax.xaxis.get_major_locator().set_params(integer=True)
     ax.margins(x=0.08)
     ax.grid(axis="x", alpha=0.3)
@@ -251,11 +279,13 @@ def agrupar_por_director(df: pd.DataFrame, minimo: int = 3):
 
     return fig, resultado
 
-def agrupar_por_actor(df: pd.DataFrame, minimo: int = 3):
+def agrupar_por_actor(df: pd.DataFrame, minimo: int = 3, etq = None):
     """
     Cuenta cuántas películas hay de cada actor y muestra en un gráfico
     solo los que tienen más de `minimo` películas.
     """
+    etq = etq or ETIQUETAS["es"]
+
     if "Actores" not in df.columns:
             raise ValueError("Falta la columna 'Actores'. Ejecuta antes anadir_creditos(df)")
     
@@ -273,8 +303,8 @@ def agrupar_por_actor(df: pd.DataFrame, minimo: int = 3):
     conteo = conteo[conteo > minimo]            # solo los que superan el mínimo
     
     if conteo.empty:
-        print(f"Ningún actor tiene más de {minimo} películas")
-        return pd.DataFrame(columns=["Actores", "Películas"])
+        print(etq["sin_datos_actor"].format(n=minimo))
+        return None, pd.DataFrame(columns=["Actores", "Películas"])
     
     resultado = conteo.rename_axis("Actores").reset_index(name="Películas")
     
@@ -283,8 +313,8 @@ def agrupar_por_actor(df: pd.DataFrame, minimo: int = 3):
     barras = ax.barh(resultado["Actores"], resultado["Películas"], color="#4C78A8")
     ax.invert_yaxis()
     ax.bar_label(barras, padding=3, fontsize=9)
-    ax.set_xlabel("Número de películas")
-    ax.set_title(f"Actores con más de {minimo} Películas")
+    ax.set_xlabel(etq["num_peliculas"])
+    ax.set_title(etq["actores_mas_de"].format(n=minimo))
     ax.xaxis.get_major_locator().set_params(integer=True)
     ax.margins(x=0.08)
     ax.grid(axis="x", alpha=0.3)
@@ -294,10 +324,11 @@ def agrupar_por_actor(df: pd.DataFrame, minimo: int = 3):
     
     return fig, resultado
 
-def agrupar_por_genero(df: pd.DataFrame, top_n: int = 12):
+def agrupar_por_genero(df: pd.DataFrame, top_n: int = 12, etq = None):
     """
     Cuenta cuantas películas hay de cada género y muestra un gráfico de barras con los resultados
     """
+    etq = etq or ETIQUETAS["es"]
 
     if "Generos" not in df.columns:
         raise ValueError("Falta 'Generos'. Ejecuta antes anadir_detalles(df)")
@@ -318,8 +349,8 @@ def agrupar_por_genero(df: pd.DataFrame, top_n: int = 12):
     barras = ax.barh(resultado["Genero"], resultado["Peliculas"], color="#4C78A8")
     ax.invert_yaxis()
     ax.bar_label(barras, padding=3, fontsize=9)
-    ax.set_xlabel("Número de películas")
-    ax.set_title(f"Top {top_n} géneros más vistos")
+    ax.set_xlabel(etq["num_peliculas"])
+    ax.set_title(etq["top_generos"].format(n=top_n))
     ax.xaxis.get_major_locator().set_params(integer=True)
     ax.margins(x=0.08)
     ax.grid(axis="x", alpha=0.3)
@@ -328,12 +359,13 @@ def agrupar_por_genero(df: pd.DataFrame, top_n: int = 12):
 
     return fig, resultado
 
-def rating_por_anio(df: pd.DataFrame, agrupacion: str | None = None, usar_tmdb: bool = False):
+def rating_por_anio(df: pd.DataFrame, agrupacion = None, usar_tmdb: bool = False, etq = None):
     """
     Rating medio por año o por década de estreno.
     Si agrupacion es None, se pregunta por consola (1 = años, 2 = décadas).
     Si usar_tmdb=True añade la media de TMDB.
     """
+    etq = etq or ETIQUETAS["es"]
 
     if "Rating" not in df.columns:
         raise ValueError("Falta columna 'Rating'. Usa ratings.csv")
@@ -353,16 +385,19 @@ def rating_por_anio(df: pd.DataFrame, agrupacion: str | None = None, usar_tmdb: 
             print("Introduce 1 o 2")
 
     if agrupacion == "decada":
-        etiqueta_x = "Década de estreno"
+        etiqueta_x = etq["decada_estreno"]
         paso = 10
     elif agrupacion == "anio":
-        etiqueta_x = "Año de estreno"
+        etiqueta_x = etq["anio_estreno"]
         paso = 1
     else:
         raise ValueError("agrupacion debe ser 'anio', 'decada' o None")
 
     # Prepara datos
     datos = df.dropna(subset=["Year", "Rating"]).copy()
+    if datos.empty:
+        print("No hay ratings válidos para calcular la media.")
+        return None, pd.DataFrame(columns=["Periodo", "RatingMedio"])
     datos["Year"] = pd.to_numeric(datos["Year"], errors="coerce")
     datos = datos.dropna(subset=["Year"])
     datos["Year"] = datos["Year"].astype(int)
@@ -391,15 +426,15 @@ def rating_por_anio(df: pd.DataFrame, agrupacion: str | None = None, usar_tmdb: 
     # Gráfico
     fig, ax = plt.subplots(figsize=(12, 5))
     ax.plot(serie.index, serie.values, marker="o", markersize=4,
-            linewidth=1.4, label="Tu rating medio", color="#4C78A8")
+            linewidth=1.4, label=etq["tu_rating"], color="#4C78A8")
 
     if serie_tmdb is not None:
         ax.plot(serie_tmdb.index, serie_tmdb.values, marker="s", markersize=4,
-                linewidth=1.2, label="Media TMDB", color="#F58518", alpha=0.85)
+                linewidth=1.2, label=etq["media_tmdb"], color="#F58518", alpha=0.85)
 
     ax.set_xlabel(etiqueta_x)
-    ax.set_ylabel("Rating medio")
-    ax.set_title(f"Rating medio por {etiqueta_x.lower()}")
+    ax.set_ylabel(etq["rating_medio"])
+    ax.set_title(etq["rating_por"].format(x=etiqueta_x.lower()))
     ax.legend()
     ax.grid(alpha=0.3)
 
@@ -428,12 +463,14 @@ def top_peliculas(df, n=10, mejores=True):
     d = d.sort_values("Rating", ascending=not mejores).head(n)
     print(d[["Name", "Year", "Rating", "Director"]].to_string(index=False))
 
-def heatmap_actividad(df: pd.DataFrame, anio: int | None = None, columna_fecha: str = "Watched Date",):
+def heatmap_actividad(df: pd.DataFrame, anio = None, columna_fecha: str = "Watched Date", etq = None):
     """
     Heatmap tipo GitHub con las películas vistas por día.
     - anio: si se indica, muestra solo ese año; si es None, muestra el año
             con más actividad (o el actual si hay datos).
     """
+    etq = etq or ETIQUETAS["es"]
+
     if columna_fecha not in df.columns:
         raise ValueError(f"Falta la columna '{columna_fecha}'. "
                          f"¿Estás usando diary.csv?")
@@ -487,8 +524,9 @@ def heatmap_actividad(df: pd.DataFrame, anio: int | None = None, columna_fecha: 
     ax.imshow(matriz_plot, aspect="auto", cmap=cmap, norm=norm,
               interpolation="nearest")
 
-    # Etiquetas eje Y: L, X, V, S, D (los que se suelen mostrar)
-    dias_etiqueta = ["L", "", "X", "", "V", "", "D"]
+    # Días: solo se etiquetan L, X, V, S, D (índices 0, 2, 4, 6)
+    dias_etiqueta = [etq["dias"][0], "", etq["dias"][1], "",
+                     etq["dias"][2], "", etq["dias"][3]]
     ax.set_yticks(range(7))
     ax.set_yticklabels(dias_etiqueta, fontsize=9)
     ax.set_ylabel("")
@@ -502,12 +540,12 @@ def heatmap_actividad(df: pd.DataFrame, anio: int | None = None, columna_fecha: 
         semana = idx // 7
         if semana < n_semanas and (not marcas_x or semana != marcas_x[-1]):
             marcas_x.append(semana)
-            etiquetas_x.append(m.strftime("%b"))
+            etiquetas_x.append(etq["meses"][m.month - 1])
 
     ax.set_xticks(marcas_x)
     ax.set_xticklabels(etiquetas_x, fontsize=9)
     ax.set_xlabel("")
-    ax.set_title(f"Actividad · {anio}  ({int(serie.sum())} películas)")
+    ax.set_title(etq["actividad"].format(anio=anio, n=int(serie.sum())))
     ax.tick_params(length=0)
 
     # Sin grid ni spines para el look "GitHub"
@@ -526,7 +564,7 @@ def heatmap_actividad(df: pd.DataFrame, anio: int | None = None, columna_fecha: 
                              clip_on=False)
         fig.add_artist(rect)
         fig.text(0.033 + i * 0.03, -0.16, txt, fontsize=8, va="center")
-    fig.text(0.005, -0.16, "Películas/día:", fontsize=8, va="center")
+    fig.text(0.005, -0.16, etq["peliculas_dia"] + ":", fontsize=8, va="center")
 
     plt.tight_layout()
     return fig
