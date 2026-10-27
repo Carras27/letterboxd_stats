@@ -4,6 +4,8 @@ import time
 import json
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
+
 
 # Lista de ficheros de interés del export de Letterboxd.
 ARCHIVOS =  ["ratings.csv", "diary.csv", "watched.csv"]
@@ -52,7 +54,6 @@ def elegir_fichero(ruta_carpeta: str, sep: str = ",") -> pd.DataFrame:
     df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
 
     return df
-
 
 def buscar_data(nombre: str, anio: int, n_actores: int = 10) -> dict:
     """
@@ -207,7 +208,6 @@ def agrupar_por_anio(df: pd.DataFrame, agrupacion: str | None = None) -> pd.Data
     plt.show()
     return resultado
 
-
 def agrupar_por_director(df: pd.DataFrame, minimo: int = 3):
     """
     Cuenta cuántas películas hay de cada director y muestra en un gráfico
@@ -331,7 +331,6 @@ def agrupar_por_genero(df: pd.DataFrame, top_n: int = 12):
 
     return resultado
 
-
 def rating_por_anio(df: pd.DataFrame, agrupacion: str | None = None, usar_tmdb: bool = False):
     """
     Rating medio por año o por década de estreno.
@@ -432,3 +431,108 @@ def top_peliculas(df, n=10, mejores=True):
     d = df.dropna(subset=["Rating", "Name"])
     d = d.sort_values("Rating", ascending=not mejores).head(n)
     print(d[["Name", "Year", "Rating", "Director"]].to_string(index=False))
+
+def heatmap_actividad(df: pd.DataFrame, anio: int | None = None, columna_fecha: str = "Watched Date",):
+    """
+    Heatmap tipo GitHub con las películas vistas por día.
+    - anio: si se indica, muestra solo ese año; si es None, muestra el año
+            con más actividad (o el actual si hay datos).
+    """
+    if columna_fecha not in df.columns:
+        raise ValueError(f"Falta la columna '{columna_fecha}'. "
+                         f"¿Estás usando diary.csv?")
+
+    fechas = pd.to_datetime(df[columna_fecha], errors="coerce").dropna()
+    if fechas.empty:
+        raise ValueError("No hay fechas válidas en el DataFrame.")
+
+    # Conteo por día
+    conteo = fechas.dt.normalize().value_counts().sort_index()
+    conteo.index = pd.DatetimeIndex(conteo.index)
+
+    # Año a mostrar
+    if anio is None:
+        # Año con más películas registradas
+        anio = int(conteo.groupby(conteo.index.year).sum().idxmax())
+
+    inicio = pd.Timestamp(f"{anio}-01-01")
+    fin = pd.Timestamp(f"{anio}-12-31")
+
+    # Serie completa del año (rellena con 0 los días sin películas)
+    rango = pd.date_range(inicio, fin, freq="D")
+    serie = conteo.reindex(rango, fill_value=0).astype(int)
+
+    # Matriz para el heatmap: filas = día de la semana (L..D), columnas = semana del año
+    # weekday(): lunes=0 ... domingo=6
+    semana_anio = ((serie.index.dayofyear - 1) // 7).astype(int)
+    dia_semana = serie.index.weekday
+
+    n_semanas = semana_anio.max() + 1
+    matriz = np.full((7, n_semanas), np.nan)
+    for w, d, v in zip(semana_anio, dia_semana, serie.values):
+        matriz[d, w] = v
+
+    # Dibujo 
+    fig, ax = plt.subplots(figsize=(max(10, n_semanas * 0.35), 3.2))
+
+    # Colormap discreta: 0 = gris muy claro, 1..4 = azules crecientes, 5+ = azul fuerte
+    from matplotlib.colors import ListedColormap, BoundaryNorm
+    cmap = ListedColormap(["#ebedf0", "#c6e2ff", "#7cb8f5", "#3b82d6", "#1f4e9c"])
+    norm = BoundaryNorm([-0.5, 0.5, 1.5, 2.5, 4.5, np.inf], cmap.N)
+    # Rejilla negra entre celdas
+    ax.set_xticks(np.arange(-0.5, n_semanas, 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, 7, 1), minor=True)
+    ax.grid(which="minor", color="black", linewidth=0.5)
+    ax.tick_params(which="minor", length=0)
+
+    # Reemplaza NaN por -1 para que no se pinten celdas inexistentes (feb 29, etc.)
+    matriz_plot = np.where(np.isnan(matriz), 0, matriz)
+
+    ax.imshow(matriz_plot, aspect="auto", cmap=cmap, norm=norm,
+              interpolation="nearest")
+
+    # Etiquetas eje Y: L, X, V, S, D (los que se suelen mostrar)
+    dias_etiqueta = ["L", "", "X", "", "V", "", "D"]
+    ax.set_yticks(range(7))
+    ax.set_yticklabels(dias_etiqueta, fontsize=9)
+    ax.set_ylabel("")
+
+    # Etiquetas eje X: primera letra de cada mes, en su semana correspondiente
+    meses_inicio = pd.date_range(inicio, fin, freq="MS")
+    marcas_x = []
+    etiquetas_x = []
+    for m in meses_inicio:
+        idx = (m - inicio).days
+        semana = idx // 7
+        if semana < n_semanas and (not marcas_x or semana != marcas_x[-1]):
+            marcas_x.append(semana)
+            etiquetas_x.append(m.strftime("%b"))
+
+    ax.set_xticks(marcas_x)
+    ax.set_xticklabels(etiquetas_x, fontsize=9)
+    ax.set_xlabel("")
+    ax.set_title(f"Actividad · {anio}  ({int(serie.sum())} películas)")
+    ax.tick_params(length=0)
+
+    # Sin grid ni spines para el look "GitHub"
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.grid(False)
+
+    # Leyenda manual
+    leyenda_vals = [0, 1, 2, 3, 4, 5]
+    leyenda_txt = ["0", "1", "2", "3-4", "5+"]
+    fig.subplots_adjust(bottom=0.25)
+    for i, (v, txt) in enumerate(zip(leyenda_vals[:5], leyenda_txt)):
+        rect = plt.Rectangle((0.01 + i * 0.03, -0.18), 0.02, 0.06,
+                             transform=fig.transFigure,
+                             facecolor=cmap(norm(v)), edgecolor="none",
+                             clip_on=False)
+        fig.add_artist(rect)
+        fig.text(0.033 + i * 0.03, -0.16, txt, fontsize=8, va="center")
+    fig.text(0.005, -0.16, "Películas/día:", fontsize=8, va="center")
+
+    plt.tight_layout()
+    plt.show()
+
+    return pd.DataFrame({"Fecha": serie.index, "Peliculas": serie.values})

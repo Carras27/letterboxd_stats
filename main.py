@@ -10,4 +10,5 @@ if __name__ == "__main__":
     #dat.agrupar_por_actor(df, 3)
     #dat.agrupar_por_genero(df, 20)
     #dat.rating_por_anio(df)
-    dat.top_peliculas(df)
+    #dat.top_peliculas(df, 10 , False)
+    dat.heatmap_actividad(df, 2026)
