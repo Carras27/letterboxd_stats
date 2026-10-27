@@ -205,8 +205,8 @@ def agrupar_por_anio(df: pd.DataFrame, agrupacion: str | None = None) -> pd.Data
     ax.set_axisbelow(True)
 
     plt.tight_layout()
-    plt.show()
-    return resultado
+
+    return fig, resultado
 
 def agrupar_por_director(df: pd.DataFrame, minimo: int = 3):
     """
@@ -248,9 +248,8 @@ def agrupar_por_director(df: pd.DataFrame, minimo: int = 3):
     ax.set_axisbelow(True)
 
     plt.tight_layout()
-    plt.show()
 
-    return resultado
+    return fig, resultado
 
 def agrupar_por_actor(df: pd.DataFrame, minimo: int = 3):
     """
@@ -292,9 +291,8 @@ def agrupar_por_actor(df: pd.DataFrame, minimo: int = 3):
     ax.set_axisbelow(True)
     
     plt.tight_layout()
-    plt.show()
     
-    return resultado
+    return fig, resultado
 
 def agrupar_por_genero(df: pd.DataFrame, top_n: int = 12):
     """
@@ -327,9 +325,8 @@ def agrupar_por_genero(df: pd.DataFrame, top_n: int = 12):
     ax.grid(axis="x", alpha=0.3)
     ax.set_axisbelow(True)
     plt.tight_layout()
-    plt.show()
 
-    return resultado
+    return fig, resultado
 
 def rating_por_anio(df: pd.DataFrame, agrupacion: str | None = None, usar_tmdb: bool = False):
     """
@@ -416,13 +413,12 @@ def rating_por_anio(df: pd.DataFrame, agrupacion: str | None = None, usar_tmdb: 
         ax.set_xticklabels([str(k) for k in marcas], rotation=45, ha="right")
 
     plt.tight_layout()
-    plt.show()
-
+    
     # Resultado
     resultado = pd.DataFrame({"Periodo": serie.index, "RatingMedio": serie.values})
     if serie_tmdb is not None:
         resultado["RatingTMDBMedio"] = serie_tmdb.values
-    return resultado
+    return fig, resultado
 
 def top_peliculas(df, n=10, mejores=True):
     """
@@ -533,6 +529,4 @@ def heatmap_actividad(df: pd.DataFrame, anio: int | None = None, columna_fecha: 
     fig.text(0.005, -0.16, "Películas/día:", fontsize=8, va="center")
 
     plt.tight_layout()
-    plt.show()
-
-    return pd.DataFrame({"Fecha": serie.index, "Peliculas": serie.values})
+    return fig
